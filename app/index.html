@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Watabou-style Village Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div>
+        <p class="tagline">Procedural village generator</p>
+        <h1>Rustic Settlement</h1>
+        <p class="subtitle">
+          Inspired by the Watabou village generator. Bigger roads, clearer parcels, and readable houses.
+        </p>
+      </div>
+      <div class="links">
+        <a href="https://watabou.itch.io/village-generator" target="_blank" rel="noopener">Original source</a>
+      </div>
+    </header>
+
+    <main>
+      <canvas id="map" width="900" height="900"></canvas>
+      <aside>
+        <div class="toolbar">
+          <label>
+            Seed
+            <input type="number" id="seed" value="834711" />
+          </label>
+          <div class="buttons">
+            <button id="regenerate">Regenerate village</button>
+            <button id="randomize">Randomize seed</button>
+          </div>
+        </div>
+        <p class="description">
+          Click “Regenerate” after changing the seed to get the same layout again. Fields, clusters, and roads all reuse the same random stream.
+        </p>
+        <ul>
+          <li>Field outlines keep the outskirts readable.</li>
+          <li>Roads and alleys are separated by thickness.</li>
+          <li>House block sizes mimic the hand-drawn style.</li>
+        </ul>
+        <footer>
+          <p>Canvas-only, offline generator — no frameworks required.</p>
+        </footer>
+      </aside>
+    </main>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
