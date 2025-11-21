@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Цифровой двойник энергосети на ECS</title>
+  <style>
+    :root {
+      --bg:#05070c;
+      --card:#101829;
+      --accent:#55d3a6;
+      --text:#f4f7fb;
+      font-family:"Inter","Segoe UI",system-ui,sans-serif;
+    }
+    *{box-sizing:border-box;}
+    body{
+      margin:0;
+      background:linear-gradient(180deg,#020408,#0c1420);
+      color:var(--text);
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .presentation{
+      width:min(1100px,100%);
+      margin:0 auto;
+      padding:1rem;
+    }
+    .slides{
+      position:relative;
+      height:640px;
+      border-radius:28px;
+      overflow:hidden;
+      background:var(--card);
+      box-shadow:0 25px 60px rgba(0,0,0,.6);
+    }
+    .slide{
+      position:absolute;
+      inset:0;
+      padding:2.5rem;
+      display:none;
+      background:linear-gradient(135deg,rgba(5,7,12,.95),rgba(19,29,43,.95));
+    }
+    .slide.active{
+      display:block;
+    }
+    .slide-inner{
+      height:100%;
+      display:flex;
+      gap:2rem;
+      flex-wrap:wrap;
+      align-items:stretch;
+      justify-content:space-between;
+    }
+    .slide-text{
+      flex:1 1 320px;
+      min-width:260px;
+      display:flex;
+      flex-direction:column;
+      gap:0.75rem;
+    }
+    h1{
+      margin:0;
+      font-size:clamp(2rem,3.4vw,3rem);
+      letter-spacing:1px;
+    }
+    h2{
+      margin:0;
+      font-size:1.5rem;
+      color:#afc5dd;
+    }
+    p,li{
+      margin:0;
+      line-height:1.5;
+      font-size:1rem;
+    }
+    ul{
+      padding-left:1.2rem;
+      margin:0;
+      display:grid;
+      gap:.35rem;
+    }
+    .slide-media{
+      flex:1 1 380px;
+      min-width:260px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .slide-media img{
+      width:100%;
+      height:auto;
+      max-height:420px;
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.1);
+      box-shadow:0 25px 45px rgba(0,0,0,.5);
+      object-fit:cover;
+    }
+    .badge{
+      font-size:.75rem;
+      text-transform:uppercase;
+      letter-spacing:1px;
+      color:var(--accent);
+      opacity:.85;
+    }
+    .controls{
+      margin-top:1rem;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    .controls button{
+      background:transparent;
+      border:1px solid rgba(255,255,255,.6);
+      color:var(--text);
+      padding:.65rem 1.6rem;
+      border-radius:999px;
+      font-size:1rem;
+      cursor:pointer;
+      transition:background .2s ease,border-color .2s ease;
+    }
+    .controls button:hover{
+      background:rgba(85,211,166,.2);
+      border-color:var(--accent);
+    }
+    .progress{
+      display:flex;
+      gap:.4rem;
+    }
+    .progress span{
+      width:14px;
+      height:14px;
+      border-radius:50%;
+      background:rgba(255,255,255,.2);
+    }
+    .progress span.active{
+      background:var(--accent);
+    }
+    @media (max-width:720px){
+      .slide{
+        padding:1.75rem;
+      }
+      .slide-inner{
+        flex-direction:column;
+      }
+    }
+    .slide[data-index="1"] .slide-media,
+    .slide[data-index="3"] .slide-media {
+      flex:1 1 520px;
+    }
+    .slide[data-index="1"] .slide-text,
+    .slide[data-index="3"] .slide-text {
+      flex:1 1 260px;
+    }
+    .slide[data-index="3"] .slide-inner{
+      flex-direction:column;
+    }
+    .slide[data-index="3"] .slide-media{
+      width:100%;
+      order:2;
+      margin-top:1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="presentation">
+    <div class="slides">
+      <section class="slide active" data-index="1">
+        <div class="slide-inner">
+          <div class="slide-text">
+            <span class="badge">ECS Digital Twin</span>
+            <h1>Цифровой двойник распределённой энергосистемы</h1>
+            <p>Модульная платформа из геоданных, телеметрии и симуляции, адаптированная под технологический суверенитет: стандарты ИПД РФ, импортозамещение и отечественная инфраструктура.</p>
+            <p>Авторы: Васильев Н.С., Иванова Н.Н. (Чувашский госуниверситет им. И.Н. Ульянова).</p>
+          </div>
+          <div class="slide-media">
+            <img src="images/image1.png" alt="Деревня и геосеть" />
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-index="2">
+        <div class="slide-inner">
+          <div class="slide-text">
+            <span class="badge">Контент</span>
+            <h2>Что видит оператор</h2>
+            <ul>
+              <li>Карты и геоданные — процедурная деревня + топология сети.</li>
+              <li>Сеть: источники, ТП, опоры и линии по дорогам, сервисная проводка к домам.</li>
+              <li>Редактор объектов, правила команд и визуальные индикаторы нагрузки/аварий.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-index="3">
+        <div class="slide-inner">
+          <div class="slide-text">
+            <span class="badge">Архитектура</span>
+            <h2>ECS + Godot + Edge</h2>
+            <p>Система построена по принципам Entity-Component-System и data-oriented дизайна: компоненты хранят данные, системы реализуют логику, что даёт масштабируемость, параллелизм и лёгкость обработки тысяч объектов.</p>
+            <p>Интерфейс собирается на Godot 4, а вычисления разбиты между краевыми ECS-узлами, интегрированными со сценарием Godot.</p>
+            <p>Модульная загрузка позволяет добавлять новые подстанции, линии и геоданные как отдельные плагины.</p>
+          </div>
+          <div class="slide-media">
+            <img src="images/image3.png" alt="Архитектура платформы" />
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-index="4">
+        <div class="slide-inner">
+          <div class="slide-text">
+            <span class="badge">Модули</span>
+            <h2>Четыре слоя платформы</h2>
+            <ul>
+              <li>Геоданные — загрузка, привязка карт, геометрия объектов.</li>
+              <li>Телеметрия — агрегат по времени, метки места, температура, состояние линий.</li>
+              <li>Обработка — ECS-системы мониторинга, аномалий, сценариев, прогнозирования.</li>
+              <li>Визуализация и диспетчер — геоинтерфейс, панели управления, отчёты.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-index="5">
+        <div class="slide-inner">
+          <div class="slide-text">
+            <span class="badge">Потоки данных</span>
+            <h2>ECS-системы и SoA</h2>
+            <p>Данные обрабатываются независимыми ECS-системами: GeoUpdateSystem, TelemetrySystem, AnomalyDetectionSystem, LoadForecastSystem.</p>
+            <p>Структура хранения SoA улучшает кэш-френдли доступ, а алгоритмы Morton Order и Sliding Window Aggregation ускоряют пространственную индексацию и потоковую агрегацию.</p>
+          </div>
+          <div class="slide-media">
+            <img src="images/image2.png" alt="Геослой и данные" />
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-index="6">
+        <div class="slide-inner">
+          <div class="slide-text">
+            <span class="badge">Edge & ML</span>
+            <h2>Производительность и интеллектуальный анализ</h2>
+            <ul>
+              <li>Вычисления выполняются как на центральном узле, так и на краевых модулях — снижены задержки и сетевые нагрузки.</li>
+              <li>ML-модули (Isolation Forest, Z-score) выявляют аномалии и сигнализируют о перегрузках.</li>
+              <li>Модульная архитектура облегчает импортозамещение и масштабирование.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-index="7">
+        <div class="slide-inner">
+          <div class="slide-text">
+            <span class="badge">Цифровой двойник</span>
+            <h2>Пилотный сценарий</h2>
+            <p>Участок распределительной сети: подстанция, линии, трансформатор, потребители. Гео+телеметрия загружаются на платформу, на краевом узле анализируются горячие участки, затем данные передаются в центральный модуль.</p>
+            <p>Результат: прогноз нагрузки, тревоги, диспетчерская визуализация, меры оптимизации (перераспределение нагрузки, техобслуживание).</p>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-index="8">
+        <div class="slide-inner">
+          <div class="slide-text">
+            <span class="badge">Требования</span>
+            <h2>От MVP к SCADA</h2>
+            <ul>
+              <li>Процедурная генерация карты, автоматическое построение сети.</li>
+              <li>Команды: update_props, set_line_status, trigger_fault, clear_faults.</li>
+              <li>Симуляция нагрузки, PQ-сolver, индикация перегрузок и статусов.</li>
+              <li>Live-снэпшоты через WebSocket и устойчивое хранение (версионирование очередей).</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-index="9">
+        <div class="slide-inner">
+          <div class="slide-text">
+            <span class="badge">Roadmap</span>
+            <h2>Следующие шаги</h2>
+            <ul>
+              <li>Секционирование, аварии, islanding, tap changers и Q-компенсация.</li>
+              <li>Фазная модель, оптимизация нагрузок, многопользовательские команды.</li>
+              <li>SMS/alert-каналы, экономические сценарии, подготовка к SCADA-уровню.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <section class="slide" data-index="10">
+        <div class="slide-inner">
+          <div class="slide-text">
+            <span class="badge">Контакты</span>
+            <h2>Команда и публикации</h2>
+            <p>ФГБОУ ВО «Чувашский государственный университет», научные публикации: E3S Web of Conferences №26 и №288, ГОСТ Р 58570-2019.</p>
+            <p>Контакты: nvjojarulesytbook@gmail.com / niva_mail@mail.ru.</p>
+          </div>
+          <div class="slide-media">
+            <img src="images/image4.png" alt="Команда и контакты" />
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="controls">
+      <button id="prev">Назад</button>
+      <div class="progress" id="progress"></div>
+      <button id="next">Дальше</button>
+    </div>
+  </div>
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const progress = document.getElementById("progress");
+    slides.forEach((_,i)=> {
+      const dot=document.createElement("span");
+      if(i===0) dot.classList.add("active");
+      progress.appendChild(dot);
+    });
+    let current=0;
+    function updateSlide(idx){
+      slides[current].classList.remove("active");
+      progress.children[current].classList.remove("active");
+      current = (idx+slides.length)%slides.length;
+      slides[current].classList.add("active");
+      progress.children[current].classList.add("active");
+    }
+    document.getElementById("prev").addEventListener("click", ()=>updateSlide(current-1));
+    document.getElementById("next").addEventListener("click", ()=>updateSlide(current+1));
+    document.addEventListener("keydown", e => {
+      if(e.key==="ArrowRight") updateSlide(current+1);
+      if(e.key==="ArrowLeft") updateSlide(current-1);
+    });
+  </script>
+</body>
+</html>

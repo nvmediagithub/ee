@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Виртуальная энергосеть — Мониторинг</title>
+    <style>
+        :root {
+            --bg: #0f1216;
+            /* фон */
+            --panel: #11161d;
+            /* панели */
+            --panel-2: #0b0f14;
+            /* глубокая тень */
+            --muted: #7b8596;
+            /* вторичный текст */
+            --text: #e6edf3;
+            /* основной текст */
+            --accent: #55d3a6;
+            /* акцент для норм */
+            --warn: #ffb35a;
+            /* предупреждение */
+            --error: #ff6b6b;
+            /* авария */
+            --info: #4ea1ff;
+            /* инфо */
+            --grid: #1a222e;
+            /* сетка/разделители */
+            --chip: #1b2230;
+            /* фон чипов */
+            --success: #79e08f;
+            /* ок */
+            --offline: #6b7280;
+            /* оффлайн */
+            --shadow: 0 8px 24px rgba(0, 0, 0, .35), 0 1px 0 rgba(255, 255, 255, .02) inset;
+            --radius: 14px;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html,
+        body {
+            height: 100%
+        }
+
+        body {
+            margin: 0;
+            background: linear-gradient(180deg, #0c1014, #0b1219 60%, #0a0f16);
+            color: var(--text);
+            font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif
+        }
+
+        a {
+            color: var(--info);
+            text-decoration: none
+        }
+
+        /* ---------- Лейаут: CSS Grid "панель наблюдения" ---------- */
+        .app {
+            display: grid;
+            grid-template-rows: 56px 1fr 122px;
+            /* topbar, контент, низ ленты */
+            grid-template-columns: 264px 1fr 380px;
+            /* левое меню, сцена, правый док */
+            grid-template-areas:
+                "top top top"
+                "nav main dock"
+                "alerts alerts alerts";
+            height: 100vh;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        /* ---------- Верхняя панель ---------- */
+        .topbar {
+            grid-area: top;
+            background: var(--panel);
+            border: 1px solid var(--grid);
+            border-radius: var(--radius);
+            display: grid;
+            grid-template-columns: 200px 1fr 520px;
+            gap: 12px;
+            align-items: center;
+            padding: 10px 14px;
+            box-shadow: var(--shadow)
+        }
+
+        .brand {
+            display: flex;
+            gap: 10px;
+            align-items: center
+        }
+
+        .brand .logo {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: radial-gradient(60% 60% at 35% 30%, #2df2b6 0%, #55d3a6 60%, rgba(85, 211, 166, 0.35) 100%);
+            box-shadow: 0 0 24px rgba(45, 242, 182, .35)
+        }
+
+        .brand h1 {
+            font-size: 14px;
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: .3px;
+            color: #d8e5ef
+        }
+
+        .search {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--panel-2);
+            border: 1px solid var(--grid);
+            border-radius: 10px;
+            padding: 8px 10px
+        }
+
+        .search input {
+            background: transparent;
+            border: 0;
+            outline: none;
+            color: var(--text);
+            width: 100%
+        }
+
+        .chip {
+            background: var(--chip);
+            border: 1px solid var(--grid);
+            padding: 6px 10px;
+            border-radius: 999px;
+            color: #c7d1e0
+        }
+
+        .timebar {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 8px;
+            align-items: center
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px
+        }
+
+        .btn {
+            background: var(--panel-2);
+            border: 1px solid var(--grid);
+            color: #dbe6f5;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer
+        }
+
+        .btn:hover {
+            filter: brightness(1.1)
+        }
+
+        .btn.icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px
+        }
+
+        .slider {
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--info), var(--accent));
+            outline: none
+        }
+
+        /* ---------- Левое меню ---------- */
+        .nav {
+            grid-area: nav;
+            background: var(--panel);
+            border: 1px solid var(--grid);
+            border-radius: var(--radius);
+            padding: 12px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column
+        }
+
+        .nav h2 {
+            font-size: 12px;
+            color: #9fb0c5;
+            text-transform: uppercase;
+            margin: 6px 8px
+        }
+
+        .nav .item {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 10px;
+            color: #cbd7e6;
+            cursor: pointer
+        }
+
+        .nav .item.active {
+            background: linear-gradient(180deg, #0f1822, #0b1219);
+            border: 1px solid var(--grid)
+        }
+
+        .nav .spacer {
+            flex: 1
+        }
+
+        .nav .role {
+            margin-top: auto;
+            background: var(--panel-2);
+            border: 1px solid var(--grid);
+            padding: 8px 10px;
+            border-radius: 10px;
+            color: #cbd7e6
+        }
+
+        /* ---------- Центральная сцена ---------- */
+        .main {
+            grid-area: main;
+            background: var(--panel);
+            border: 1px solid var(--grid);
+            border-radius: var(--radius);
+            display: grid;
+            grid-template-rows: 40px 1fr 140px;
+            gap: 10px;
+            padding: 10px;
+            box-shadow: var(--shadow)
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: center
+        }
+
+        .sep {
+            width: 1px;
+            height: 22px;
+            background: var(--grid)
+        }
+
+        .scene {
+            position: relative;
+            border: 1px solid var(--grid);
+            border-radius: 12px;
+            overflow: hidden;
+            background: radial-gradient(1200px 800px at 60% 40%, #0f1520 0%, #0c1118 45%, #0b0f15 100%)
+        }
+
+        .scene .layer {
+            position: absolute;
+            inset: 0
+        }
+
+        .scene .heat {
+            background: radial-gradient(200px 160px at 40% 35%, rgba(255, 115, 0, .12), transparent 60%), radial-gradient(260px 220px at 70% 52%, rgba(255, 0, 0, .08), transparent 60%)
+        }
+
+        .scene svg {
+            position: absolute;
+            inset: 0
+        }
+
+        .mini {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px
+        }
+
+        .card {
+            background: var(--panel-2);
+            border: 1px solid var(--grid);
+            border-radius: 12px;
+            padding: 10px
+        }
+
+        /* ---------- Правый док ---------- */
+        .dock {
+            grid-area: dock;
+            background: var(--panel);
+            border: 1px solid var(--grid);
+            border-radius: var(--radius);
+            padding: 10px;
+            box-shadow: var(--shadow);
+            display: grid;
+            grid-template-rows: auto auto auto 1fr
+        }
+
+        .dock h3 {
+            margin: 6px 0 8px 0
+        }
+
+        .kv {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px
+        }
+
+        .k {
+            background: var(--panel-2);
+            border: 1px solid var(--grid);
+            border-radius: 10px;
+            padding: 8px
+        }
+
+        .trend {
+            height: 60px
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap
+        }
+
+        .pill {
+            border-radius: 999px;
+            border: 1px solid var(--grid);
+            background: #0e141b;
+            padding: 6px 10px
+        }
+
+        .log {
+            overflow: auto;
+            border: 1px dashed var(--grid);
+            border-radius: 8px;
+            padding: 8px;
+            max-height: 240px
+        }
+
+        /* ---------- Лента алертов ---------- */
+        .alerts {
+            grid-area: alerts;
+            background: var(--panel);
+            border: 1px solid var(--grid);
+            border-radius: var(--radius);
+            padding: 10px;
+            box-shadow: var(--shadow);
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px
+        }
+
+        .ticker {
+            display: flex;
+            gap: 8px;
+            overflow: auto
+        }
+
+        .alert {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #121a24;
+            border: 1px solid var(--grid);
+            border-left: 4px solid var(--warn);
+            padding: 8px 10px;
+            border-radius: 10px;
+            white-space: nowrap
+        }
+
+        .alert.p1 {
+            border-left-color: var(--error)
+        }
+
+        .alert.p2 {
+            border-left-color: var(--warn)
+        }
+
+        .alert.p3 {
+            border-left-color: var(--info)
+        }
+
+        .alert .badge {
+            padding: 2px 6px;
+            border-radius: 6px;
+            background: var(--chip);
+            border: 1px solid var(--grid);
+            font-weight: 700;
+            color: #d6e3f0
+        }
+
+        .queue-actions {
+            display: flex;
+            gap: 8px
+        }
+
+        /* ---------- KPI Drawer ---------- */
+        .drawer {
+            position: fixed;
+            right: 20px;
+            bottom: 150px;
+            width: 420px;
+            background: var(--panel);
+            border: 1px solid var(--grid);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            display: none
+        }
+
+        .drawer.active {
+            display: block
+        }
+
+        .drawer header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--grid)
+        }
+
+        .drawer .body {
+            padding: 12px;
+            display: grid;
+            gap: 10px
+        }
+
+        .kpi {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 6px;
+            background: var(--panel-2);
+            border: 1px solid var(--grid);
+            border-radius: 10px;
+            padding: 10px
+        }
+
+        /* ---------- Мелочи ---------- */
+        .tag {
+            font-size: 12px;
+            color: #a9b7c9
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%
+        }
+
+        .dot.ok {
+            background: var(--accent)
+        }
+
+        .dot.warn {
+            background: var(--warn)
+        }
+
+        .dot.err {
+            background: var(--error)
+        }
+
+        .dot.off {
+            background: var(--offline)
+        }
+
+        /* ---------- Адаптив ---------- */
+        @media (max-width:1300px) {
+            .app {
+                grid-template-columns: 200px 1fr 320px
+            }
+
+            .topbar {
+                grid-template-columns: 160px 1fr 480px
+            }
+        }
+
+        @media (max-width:1100px) {
+            .app {
+                grid-template-columns: 0 1fr 0;
+                grid-template-areas:
+                    "top top top"
+                    "main main main"
+                    "alerts alerts alerts";
+            }
+
+            .nav,
+            .dock {
+                display: none
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <!-- Верхняя панель -->
+        <div class="topbar">
+            <div class="brand">
+                <div class="logo" aria-hidden="true"></div>
+                <h1>Виртуальная энергосеть · Мониторинг</h1>
+            </div>
+            <div class="search" role="search">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9fb0c5" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input placeholder="Поиск: подстанция, линия, район, событие…" />
+                <span class="chip">Фильтры</span>
+            </div>
+            <div class="timebar">
+                <div class="controls">
+                    <button class="btn icon" id="btn-live" title="Live">⏺</button>
+                    <button class="btn icon" id="btn-back" title="Назад 1 шаг">⏮</button>
+                    <button class="btn icon" id="btn-play" title="Пуск/Пауза">⏵</button>
+                    <button class="btn icon" id="btn-fwd" title="Вперёд 1 шаг">⏭</button>
+                </div>
+                <input class="slider" id="timeline" type="range" min="0" max="100" value="70"
+                    aria-label="Временная шкала" />
+                <div class="controls">
+                    <span class="chip" id="speed">×1</span>
+                    <button class="btn" id="open-kpi">KPI</button>
+                    <button class="btn" id="open-triage">Триедж</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Левое меню -->
+        <aside class="nav" aria-label="Основная навигация">
+            <h2>Режимы</h2>
+            <div class="item active"><span>📊</span>Обзор</div>
+            <div class="item"><span>🗺️</span>Карта</div>
+            <div class="item"><span>🧩</span>Топология</div>
+            <div class="item"><span>📡</span>Телеметрия</div>
+            <div class="item"><span>🚨</span>Аварии</div>
+            <div class="item"><span>📈</span>Аналитика KPI</div>
+            <div class="item"><span>🛠️</span>Сценарии What‑if</div>
+            <div class="item"><span>📓</span>Журналы/экспорт</div>
+            <div class="spacer"></div>
+            <div class="role">Роль: Дежурный</div>
+        </aside>
+
+        <!-- Центральная сцена -->
+        <main class="main" role="main">
+            <div class="toolbar">
+                <span class="tag">Слои:</span>
+                <label class="pill"><input type="checkbox" checked> ЛЭП</label>
+                <label class="pill"><input type="checkbox" checked> Подстанции</label>
+                <label class="pill"><input type="checkbox"> Зоны нагрузки</label>
+                <label class="pill"><input type="checkbox" checked> Аномалии</label>
+                <span class="sep"></span>
+                <label class="pill"><input type="checkbox" checked> Тепловая карта</label>
+                <label class="pill"><input type="checkbox"> Погодный слой</label>
+            </div>
+
+            <!-- Карта/сцена -->
+            <section class="scene" aria-label="Карта сети">
+                <div class="layer heat" aria-hidden="true"></div>
+                <!-- Граф энергосети (SVG-плейсхолдер) -->
+                <svg viewBox="0 0 1100 620" preserveAspectRatio="none" aria-hidden="true">
+                    <!-- линии ЛЭП -->
+                    <g stroke="#58c99f" stroke-opacity="0.9" stroke-width="3" fill="none">
+                        <path d="M80,500 C260,420 420,480 540,420 700,340 840,340 1000,300" />
+                        <path d="M320,540 C380,520 420,500 520,470" />
+                        <path d="M540,420 C560,360 620,320 720,300" />
+                    </g>
+                    <g stroke="#ff9450" stroke-width="3" fill="none">
+                        <path d="M540,420 C600,430 680,460 820,520" />
+                    </g>
+                    <!-- узлы/подстанции -->
+                    <g fill="#d9e7f5" stroke="#0b0f15" stroke-width="1.5">
+                        <circle cx="80" cy="500" r="6" />
+                        <circle cx="320" cy="540" r="6" />
+                        <circle cx="540" cy="420" r="7" />
+                        <circle cx="720" cy="300" r="6" />
+                        <circle cx="1000" cy="300" r="6" />
+                        <circle cx="820" cy="520" r="6" fill="#ffb35a" />
+                    </g>
+                </svg>
+                <!-- Легенда состояния -->
+                <div
+                    style="position:absolute;left:12px;top:12px;display:flex;gap:10px;background:rgba(10,14,18,.7);border:1px solid var(--grid);padding:6px 8px;border-radius:10px;backdrop-filter:blur(4px)">
+                    <span class="status"><span class="dot ok"></span>Норма</span>
+                    <span class="status"><span class="dot warn"></span>Нагрузка</span>
+                    <span class="status"><span class="dot err"></span>Авария</span>
+                    <span class="status"><span class="dot off"></span>Offline</span>
+                </div>
+            </section>
+
+            <!-- Мини‑виджеты под сценой -->
+            <section class="mini">
+                <div class="card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+                        <strong>Потери активной мощности</strong>
+                        <span class="chip">Последние 24ч</span>
+                    </div>
+                    <svg class="trend" viewBox="0 0 400 60" preserveAspectRatio="none" aria-hidden="true">
+                        <polyline
+                            points="0,45 30,40 60,42 90,35 120,28 150,32 180,20 210,16 240,24 270,26 300,22 330,18 360,14 400,10"
+                            fill="none" stroke="#4ea1ff" stroke-width="2" />
+                    </svg>
+                </div>
+                <div class="card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+                        <strong>Отклонение напряжения (95-й перц.)</strong>
+                        <span class="chip">Сеть в целом</span>
+                    </div>
+                    <svg class="trend" viewBox="0 0 400 60" preserveAspectRatio="none" aria-hidden="true">
+                        <polyline
+                            points="0,25 30,28 60,26 90,30 120,34 150,32 180,36 210,40 240,38 270,35 300,32 330,28 360,30 400,26"
+                            fill="none" stroke="#55d3a6" stroke-width="2" />
+                    </svg>
+                </div>
+            </section>
+        </main>
+
+        <!-- Правый док -->
+        <aside class="dock" aria-label="Детали объекта" id="dock">
+            <h3>Подстанция «Академическая» <span class="tag">110 кВ</span></h3>
+            <div class="kv">
+                <div class="k">
+                    <div class="tag">Напряжение V</div><strong>109.2</strong>
+                </div>
+                <div class="k">
+                    <div class="tag">Ток A</div><strong>238</strong>
+                </div>
+                <div class="k">
+                    <div class="tag">Мощность Р (МВт)</div><strong>31.4</strong>
+                </div>
+                <div class="k">
+                    <div class="tag">cos φ</div><strong>0.96</strong>
+                </div>
+            </div>
+            <div class="k" aria-label="Мини‑тренд">
+                <div style="display:flex;justify-content:space-between"><span class="tag">Тренд 1ч</span><span
+                        class="status"><span class="dot warn"></span>Деградация</span></div>
+                <svg class="trend" viewBox="0 0 400 60" preserveAspectRatio="none">
+                    <polyline
+                        points="0,32 30,30 60,28 90,26 120,28 150,24 180,22 210,18 240,20 270,16 300,14 330,12 360,14 400,10"
+                        fill="none" stroke="#ffb35a" stroke-width="2" />
+                </svg>
+            </div>
+            <div class="actions">
+                <button class="btn">Выбросить нагрузку 10%</button>
+                <button class="btn">Ограничить Pmax</button>
+                <button class="btn">Создать тикет</button>
+            </div>
+            <div class="log" aria-label="История событий">
+                <div>10:02 · <span class="status"><span class="dot warn"></span></span> Дрейф напряжения на шинах</div>
+                <div>09:55 · Пороговая аномалия — рост I на фидере F‑12</div>
+                <div>09:40 · Плановые работы в зоне «Ю‑В»</div>
+            </div>
+        </aside>
+
+        <!-- Лента алертов -->
+        <section class="alerts" aria-label="Лента алертов">
+            <div class="ticker" id="ticker">
+                <div class="alert p1"><span class="badge">P1</span> Перегрузка линии L‑27 · Сев‑Вост</div>
+                <div class="alert p2"><span class="badge">P2</span> Дрейф напряжения · ПС «Смирновская»</div>
+                <div class="alert p3"><span class="badge">P3</span> Потеря телеметрии · ПС «Западная»</div>
+            </div>
+            <div class="queue-actions">
+                <button class="btn">Принять</button>
+                <button class="btn">Эскалация</button>
+                <button class="btn">Мьют</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Drawer KPI -->
+    <div class="drawer" id="drawer-kpi" role="dialog" aria-modal="true" aria-labelledby="kpi-title">
+        <header>
+            <strong id="kpi-title">KPI (за сутки)</strong>
+            <button class="btn icon" id="close-kpi" aria-label="Закрыть">✕</button>
+        </header>
+        <div class="body">
+            <div class="kpi">
+                <div>Доступность сети (SLA)</div><strong>99.93%</strong>
+            </div>
+            <div class="kpi">
+                <div>Потери активной мощности</div><strong>2.7%</strong>
+            </div>
+            <div class="kpi">
+                <div>Среднее время реакции P1</div><strong>2м 40с</strong>
+            </div>
+            <div class="kpi">
+                <div>Инциденты (P1/P2/P3)</div><strong>2 / 7 / 18</strong>
+            </div>
+            <div class="kpi">
+                <div>Прогноз горячих зон 24ч</div><strong>3</strong>
+            </div>
+            <div class="kpi">
+                <div>Отклонение напряжения (95‑й)</div><strong>±4.1%</strong>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Простая логика управления
+        const playBtn = document.getElementById('btn-play');
+        const liveBtn = document.getElementById('btn-live');
+        const speedChip = document.getElementById('speed');
+        const timeline = document.getElementById('timeline');
+        const openKPI = document.getElementById('open-kpi');
+        const closeKPI = document.getElementById('close-kpi');
+        const drawerKPI = document.getElementById('drawer-kpi');
+
+        let playing = false;
+        let speed = 1;
+
+        playBtn.addEventListener('click', () => {
+            playing = !playing;
+            playBtn.textContent = playing ? '⏸' : '⏵';
+        });
+
+        liveBtn.addEventListener('click', () => {
+            timeline.value = 100;
+            speed = 1;
+            speedChip.textContent = '×' + speed;
+        });
+
+        // Клик по чипу скорости — циклическая смена ×1..×60
+        speedChip.addEventListener('click', () => {
+            const steps = [1, 2, 4, 8, 16, 32, 60];
+            const idx = steps.indexOf(speed);
+            speed = steps[(idx + 1) % steps.length];
+            speedChip.textContent = '×' + speed;
+        });
+
+        openKPI.addEventListener('click', () => drawerKPI.classList.add('active'));
+        closeKPI.addEventListener('click', () => drawerKPI.classList.remove('active'));
+
+        // Автоскролл тикера (без зависимостей)
+        const ticker = document.getElementById('ticker');
+        let offset = 0;
+        function tick() {
+            offset += 0.4; // px
+            ticker.scrollLeft = offset;
+            if (ticker.scrollLeft + ticker.clientWidth >= ticker.scrollWidth) {
+                offset = 0;
+            }
+            requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+    </script>
+</body>
+
+</html>

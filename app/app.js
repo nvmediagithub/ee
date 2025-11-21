@@ -23,10 +23,27 @@ const consumerUpdateBtn = document.getElementById("consumer-update");
 const lineSelect = document.getElementById("line-select");
 const lineStatusSelect = document.getElementById("line-status");
 const lineSetBtn = document.getElementById("line-set-status");
-const consumerSelect = document.getElementById("consumer-select");
-const consumerBaseInput = document.getElementById("consumer-base");
-const consumerCosPhiInput = document.getElementById("consumer-cosphi");
-const consumerUpdateBtn = document.getElementById("consumer-update");
+const nodeTypeSelect = document.getElementById("node-type-select");
+const nodePosXInput = document.getElementById("node-pos-x");
+const nodePosYInput = document.getElementById("node-pos-y");
+const nodeBaseInput = document.getElementById("node-base");
+const nodeProfileSelect = document.getElementById("node-profile");
+const nodeCosPhiInputNew = document.getElementById("node-cosphi");
+const nodeBrushBtn = document.getElementById("add-node-btn");
+const nodeFromSelect = document.getElementById("line-node-from");
+const nodeToSelect = document.getElementById("line-node-to");
+const lineLengthInput = document.getElementById("line-length");
+const lineCapacityInput = document.getElementById("line-capacity");
+const lineBrushBtn = document.getElementById("add-line-btn");
+const brushStatusEl = document.getElementById("brush-status");
+const nodeMenu = document.getElementById("node-menu");
+const nodeMenuTitle = document.getElementById("node-menu-title");
+const nodeMenuClose = document.getElementById("node-menu-close");
+const nodeMenuBase = document.getElementById("node-menu-base");
+const nodeMenuCosPhi = document.getElementById("node-menu-cosphi");
+const nodeMenuSave = document.getElementById("node-menu-save");
+const nodeMonitorEl = document.getElementById("node-monitor");
+const lineMonitorEl = document.getElementById("line-monitor");
 
 let overlayGridSnapshot = null;
 let currentGridId = null;
@@ -34,6 +51,16 @@ let gridWs = null;
 let backendBase = normalizeBackendUrl(backendUrlInput?.value ?? "http://localhost:8000");
 let consumerNodes = [];
 let lineEntries = [];
+let brushMode = null;
+let brushActive = false;
+let lineBrushFrom = null;
+let brushBusy = false;
+let dragNodeId = null;
+let dragStartPoint = null;
+let dragPendingPos = null;
+let dragMoved = false;
+let suppressClick = false;
+let menuNodeId = null;
 
 function calibrateCanvas() {
   const ratio = window.devicePixelRatio || 1;
@@ -65,7 +92,7 @@ function clamp(value, min, max) {
 
 function buildVillage(seed) {
   const rng = createRng(seed);
-  const center = {x: SIZE * 0.56, y: SIZE * 0.45};
+  const center = { x: SIZE * 0.56, y: SIZE * 0.45 };
   const river = createRiver(rng);
   const roads = createRoads(rng, center);
   const houses = createHouses(rng, roads, center);
@@ -76,7 +103,7 @@ function buildVillage(seed) {
 
   return {
     seed,
-    info: {name, population},
+    info: { name, population },
     river,
     roads,
     houses,
@@ -98,7 +125,7 @@ function createRiver(rng) {
     const wobble = Math.sin(t * Math.PI * 1.3);
     const x = clamp(SIZE * (0.2 + wobble * 0.12 + rng() * 0.4), 20, SIZE - 40);
     const y = SIZE * t;
-    path.push({x, y});
+    path.push({ x, y });
   }
   return path;
 }
@@ -120,7 +147,7 @@ function createRoads(rng, center) {
       path.push(next);
       angle += (rng() - 0.5) * 0.4;
     }
-    roads.push({path, type: "major"});
+    roads.push({ path, type: "major" });
   });
 
   for (let i = 0; i < 5; i++) {
@@ -138,7 +165,7 @@ function createRoads(rng, center) {
       });
       angle += (rng() - 0.5) * 0.9;
     }
-    roads.push({path, type: "minor"});
+    roads.push({ path, type: "minor" });
   }
 
   return roads;
@@ -161,7 +188,7 @@ function createHouses(rng, roads, center) {
         const t = offset / segLen;
         const px = a.x + dx * t;
         const py = a.y + dy * t;
-        const normal = {x: -dy / segLen, y: dx / segLen};
+        const normal = { x: -dy / segLen, y: dx / segLen };
         const side = rng() < 0.5 ? -1 : 1;
         const shift = 28 + rng() * 30;
         const anchor = {
@@ -193,10 +220,10 @@ function createHouses(rng, roads, center) {
 
 function createFields(rng, river) {
   const centers = [
-    {x: SIZE * 0.18, y: SIZE * 0.25},
-    {x: SIZE * 0.15, y: SIZE * 0.65},
-    {x: SIZE * 0.75, y: SIZE * 0.22},
-    {x: SIZE * 0.82, y: SIZE * 0.58},
+    { x: SIZE * 0.18, y: SIZE * 0.25 },
+    { x: SIZE * 0.15, y: SIZE * 0.65 },
+    { x: SIZE * 0.75, y: SIZE * 0.22 },
+    { x: SIZE * 0.82, y: SIZE * 0.58 },
   ];
   const fields = centers.map((c) => {
     const radius = SIZE * (0.15 + rng() * 0.12);
@@ -222,9 +249,9 @@ function createFields(rng, river) {
 function createTreeClusters(rng, river) {
   const clusters = [];
   const anchors = [
-    {x: SIZE * (0.12 + rng() * 0.2), y: SIZE * (0.18 + rng() * 0.12)},
-    {x: SIZE * (0.22 + rng() * 0.15), y: SIZE * (0.62 + rng() * 0.12)},
-    {x: SIZE * (0.7 + rng() * 0.18), y: SIZE * (0.15 + rng() * 0.15)},
+    { x: SIZE * (0.12 + rng() * 0.2), y: SIZE * (0.18 + rng() * 0.12) },
+    { x: SIZE * (0.22 + rng() * 0.15), y: SIZE * (0.62 + rng() * 0.12) },
+    { x: SIZE * (0.7 + rng() * 0.18), y: SIZE * (0.15 + rng() * 0.15) },
   ];
   anchors.forEach((anchor) => {
     const count = 18 + Math.floor(rng() * 24);
@@ -240,7 +267,7 @@ function createTreeClusters(rng, river) {
         radius,
       });
     }
-    clusters.push({trees});
+    clusters.push({ trees });
   });
   return clusters;
 }
@@ -405,11 +432,11 @@ function drawVillage(village) {
   drawNetworkOverlay(overlayGridSnapshot);
 }
 
-const GRID_BOUNDS = {minX: -60, maxX: 80, minY: -40, maxY: 160};
+const GRID_BOUNDS = { minX: -60, maxX: 80, minY: -40, maxY: 160 };
 
 function mapGridPoint(position) {
   if (!position) {
-    return {x: SIZE / 2, y: SIZE / 2};
+    return { x: SIZE / 2, y: SIZE / 2 };
   }
   const pctX = clamp((position.x - GRID_BOUNDS.minX) / (GRID_BOUNDS.maxX - GRID_BOUNDS.minX), 0, 1);
   const pctY = clamp((position.y - GRID_BOUNDS.minY) / (GRID_BOUNDS.maxY - GRID_BOUNDS.minY), 0, 1);
@@ -417,6 +444,68 @@ function mapGridPoint(position) {
     x: pctX * SIZE,
     y: pctY * SIZE,
   };
+}
+
+function setBrushStatus(text) {
+  if (brushStatusEl) {
+    brushStatusEl.textContent = text;
+  }
+}
+
+function updateBrushButtons() {
+  if (nodeBrushBtn) {
+    nodeBrushBtn.textContent = brushActive && brushMode === "node" ? "Brush nodes (active)" : "Brush nodes";
+  }
+  if (lineBrushBtn) {
+    lineBrushBtn.textContent = brushActive && brushMode === "line" ? "Brush lines (active)" : "Brush lines";
+  }
+}
+
+function toggleBrush(mode) {
+  if (brushActive && brushMode === mode) {
+    brushActive = false;
+    brushMode = null;
+    lineBrushFrom = null;
+    setBrushStatus("Brush inactive");
+  } else {
+    brushActive = true;
+    brushMode = mode;
+    lineBrushFrom = null;
+    setBrushStatus(mode === "line" ? "Line brush active — click source node" : "Node brush active — click map");
+  }
+  updateBrushButtons();
+}
+
+function getCanvasPoint(event) {
+  const rect = canvas.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width) * SIZE;
+  const y = ((event.clientY - rect.top) / rect.height) * SIZE;
+  return { x, y };
+}
+
+function canvasToGrid(point) {
+  const x = GRID_BOUNDS.minX + (point.x / SIZE) * (GRID_BOUNDS.maxX - GRID_BOUNDS.minX);
+  const y = GRID_BOUNDS.minY + (point.y / SIZE) * (GRID_BOUNDS.maxY - GRID_BOUNDS.minY);
+  return { x, y };
+}
+
+function findClosestNode(point, threshold = 20) {
+  if (!overlayGridSnapshot?.nodes) {
+    return null;
+  }
+  let best = null;
+  let bestDist = Infinity;
+  Object.values(overlayGridSnapshot.nodes).forEach((node) => {
+    const mapped = mapGridPoint(node.position);
+    const dx = mapped.x - point.x;
+    const dy = mapped.y - point.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < bestDist && dist <= threshold) {
+      bestDist = dist;
+      best = node;
+    }
+  });
+  return best;
 }
 
 function drawNetworkOverlay(snapshot) {
@@ -450,6 +539,17 @@ function drawNetworkOverlay(snapshot) {
   });
 
   ctx.setLineDash([]);
+  if (brushActive && brushMode === "line") {
+    ctx.save();
+    ctx.fillStyle = "rgba(85, 211, 166, 0.15)";
+    Object.values(nodes).forEach((node) => {
+      const pos = mapGridPoint(node.position);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 14, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
   Object.values(nodes).forEach((node) => {
     const pos = mapGridPoint(node.position);
     const radius = node.kind === "plant" ? 9 : node.kind === "tp" ? 7 : 5;
@@ -459,10 +559,10 @@ function drawNetworkOverlay(snapshot) {
       node.kind === "plant"
         ? "#fff4d9"
         : node.kind === "tp"
-        ? "#d9eaf4"
-        : node.kind === "house"
-        ? "#fde4e8"
-        : "#e8f3e5";
+          ? "#d9eaf4"
+          : node.kind === "house"
+            ? "#fde4e8"
+            : "#e8f3e5";
     ctx.strokeStyle =
       node.status === "faulted" ? "#de3d45" : node.status === "open" ? "#f1a53a" : "#3a4d3c";
     ctx.lineWidth = 2;
@@ -474,6 +574,18 @@ function drawNetworkOverlay(snapshot) {
     const label = node.kind?.substring(0, 1).toUpperCase() ?? "N";
     ctx.fillText(label, pos.x + radius + 2, pos.y + 4);
   });
+
+  if (brushActive && brushMode === "line") {
+    ctx.save();
+    ctx.fillStyle = "rgba(85, 211, 166, 0.15)";
+    Object.values(nodes).forEach((node) => {
+      const pos = mapGridPoint(node.position);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 14, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
 
   ctx.restore();
 }
@@ -487,8 +599,11 @@ function redrawVillage() {
 function handleGridSnapshot(snapshot) {
   overlayGridSnapshot = snapshot;
   currentGridId = snapshot?.id ?? currentGridId;
+  hideNodeMenu();
   populateConsumerList(snapshot);
   populateLineList(snapshot);
+  populateNodeSelectors(snapshot);
+  updateNetworkMonitor(snapshot);
   updateGridMetadata(snapshot);
   redrawVillage();
 }
@@ -548,6 +663,331 @@ function populateLineList(snapshot) {
   if (lineEntries.length > 0) {
     lineSelect.value = lineEntries[0].id;
     syncLineSelection();
+  }
+  populateNodeSelectors(snapshot);
+}
+
+function populateNodeSelectors(snapshot) {
+  const nodes = snapshot?.nodes ?? {};
+  const entries = Object.values(nodes);
+  const buildOptions = (select) => {
+    if (!select) {
+      return;
+    }
+    select.innerHTML = "";
+    entries.forEach((node) => {
+      const option = document.createElement("option");
+      option.value = node.id;
+      option.textContent = `${node.kind}-${node.id.slice(-6)}`;
+      select.appendChild(option);
+    });
+    if (entries.length > 0) {
+      select.value = entries[0].id;
+    }
+  };
+  buildOptions(nodeFromSelect);
+  buildOptions(nodeToSelect);
+}
+
+function updateNetworkMonitor(snapshot) {
+  if (!snapshot) {
+    return;
+  }
+  const nodes = Object.values(snapshot.nodes ?? {});
+  if (nodeMonitorEl) {
+    const rows = nodes
+      .sort((a, b) => (b.state?.overload_ratio ?? 0) - (a.state?.overload_ratio ?? 0))
+      .slice(0, 5)
+      .map((node) => {
+        const v = node.state?.v_kv ?? node.props?.voltage_kv ?? 0;
+        const island = node.state?.island_id ?? 0;
+        const status = node.status ?? "online";
+        const p = node.state?.p_load_kw ?? node.state?.p_kw ?? 0;
+        const warning = status !== "online" ? ' class="monitor-grid__item--warn"' : "";
+        return `<li${warning}><span>${node.kind}</span> ${node.id.slice(-6)} — V=${v.toFixed(2)}kV, P=${p.toFixed(1)}kW, status=${status}, island=${island}</li>`;
+      })
+      .join("");
+    nodeMonitorEl.innerHTML = rows || "<li>Нет данных</li>";
+  }
+  const lines = Object.values(snapshot.lines ?? {});
+  if (lineMonitorEl) {
+    const rows = lines
+      .sort((a, b) => (b.state?.overload_ratio ?? 0) - (a.state?.overload_ratio ?? 0))
+      .slice(0, 5)
+      .map((line) => {
+        const s = line.state?.s_flow_kva ?? 0;
+        const overload = (line.state?.overload_ratio ?? 0).toFixed(2);
+        const warning = line.status !== "online" ? ' class="monitor-grid__item--warn"' : "";
+        return `<li${warning}>${line.id.slice(-6)} — ${line.status}, S=${s.toFixed(1)}kVA, ovr=${overload}</li>`;
+      })
+      .join("");
+    lineMonitorEl.innerHTML = rows || "<li>Нет данных</li>";
+  }
+}
+
+function showNodeMenu(node, clientX, clientY) {
+  if (!nodeMenu) {
+    return;
+  }
+  menuNodeId = node.id;
+  nodeMenuTitle.textContent = `${node.kind} ${node.id.slice(-6)}`;
+  const base = node.props?.base_kw ?? node.props?.capacity_kw ?? "";
+  const cosPhi = node.props?.cos_phi ?? "";
+  if (nodeMenuBase) {
+    nodeMenuBase.value = base;
+  }
+  if (nodeMenuCosPhi) {
+    nodeMenuCosPhi.value = cosPhi;
+  }
+  nodeMenu.classList.remove("hidden");
+  window.requestAnimationFrame(() => {
+    const offset = 12;
+    const menuWidth = nodeMenu.offsetWidth;
+    const menuHeight = nodeMenu.offsetHeight;
+    const maxLeft = window.innerWidth - menuWidth - 12;
+    const maxTop = window.innerHeight - menuHeight - 12;
+    const left = Math.min(maxLeft, clientX + offset);
+    const top = Math.min(maxTop, clientY + offset);
+    nodeMenu.style.left = `${Math.max(12, left)}px`;
+    nodeMenu.style.top = `${Math.max(12, top)}px`;
+  });
+}
+
+function hideNodeMenu() {
+  if (nodeMenu) {
+    nodeMenu.classList.add("hidden");
+  }
+  menuNodeId = null;
+}
+
+async function saveNodeMenu() {
+  if (!menuNodeId) {
+    return;
+  }
+  const props = {};
+  const base = parseFloat(nodeMenuBase?.value ?? "");
+  const cosPhi = parseFloat(nodeMenuCosPhi?.value ?? "");
+  if (!Number.isNaN(base) && base !== "") {
+    props.base_kw = base;
+  }
+  if (!Number.isNaN(cosPhi)) {
+    props.cos_phi = cosPhi;
+  }
+  if (!Object.keys(props).length) {
+    setGridStatus("no changes to save");
+    return;
+  }
+  setGridStatus("saving node...");
+  try {
+    const snapshot = await postJson(`/v1/power-grid/grids/${currentGridId}/command`, {
+      action: "update_node_props",
+      payload: { node_id: menuNodeId, props },
+    });
+    handleGridSnapshot(snapshot);
+    setGridStatus("node updated");
+    hideNodeMenu();
+  } catch (err) {
+    console.error(err);
+    setGridStatus("node update failed");
+  }
+}
+
+function handleCanvasMouseDown(event) {
+  if (brushActive || !overlayGridSnapshot?.nodes) {
+    return;
+  }
+  const point = getCanvasPoint(event);
+  const node = findClosestNode(point);
+  if (!node) {
+    return;
+  }
+  dragNodeId = node.id;
+  dragStartPoint = point;
+  dragPendingPos = canvasToGrid(point);
+  dragMoved = false;
+  suppressClick = false;
+}
+
+function handleCanvasMouseMove(event) {
+  if (!dragNodeId) {
+    return;
+  }
+  const point = getCanvasPoint(event);
+  const start = dragStartPoint;
+  if (!start) {
+    return;
+  }
+  const dist = Math.hypot(point.x - start.x, point.y - start.y);
+  if (dist > 4) {
+    dragMoved = true;
+    suppressClick = true;
+  }
+  const gridPos = canvasToGrid(point);
+  dragPendingPos = gridPos;
+  const node = overlayGridSnapshot?.nodes?.[dragNodeId];
+  if (node) {
+    node.position = { x: gridPos.x, y: gridPos.y };
+    redrawVillage();
+  }
+}
+
+function handleCanvasMouseUp(event) {
+  const nodeId = dragNodeId;
+  const target = dragPendingPos;
+  dragNodeId = null;
+  dragStartPoint = null;
+  dragPendingPos = null;
+  if (nodeId && dragMoved && target) {
+    updateNodePosition(nodeId, target);
+  }
+  dragMoved = false;
+}
+
+function handleCanvasClick(event) {
+  if (brushActive) {
+    handleBrushClick(event);
+    return;
+  }
+  if (suppressClick) {
+    suppressClick = false;
+    return;
+  }
+  const point = getCanvasPoint(event);
+  const node = findClosestNode(point);
+  if (node) {
+    showNodeMenu(node, event.clientX, event.clientY);
+  } else {
+    hideNodeMenu();
+  }
+}
+
+function handleBrushClick(event) {
+  if (!brushActive || brushBusy) {
+    return;
+  }
+  const canvasPoint = getCanvasPoint(event);
+  const gridPos = canvasToGrid(canvasPoint);
+  if (brushMode === "node") {
+    addNodeBrush(gridPos);
+  } else if (brushMode === "line") {
+    handleLineBrushClick(canvasPoint);
+  }
+}
+
+async function addNodeBrush(position) {
+  if (!currentGridId) {
+    return;
+  }
+  brushBusy = true;
+  const nodeType = nodeTypeSelect?.value ?? "pole";
+  const props = {};
+  const baseValue = parseFloat(nodeBaseInput?.value ?? "");
+  if (!Number.isNaN(baseValue)) {
+    if (nodeType === "consumer" || nodeType === "house") {
+      props.base_kw = baseValue;
+    } else {
+      props.capacity_kw = baseValue;
+    }
+  }
+  if (nodeProfileSelect && (nodeType === "consumer" || nodeType === "house")) {
+    props.profile = nodeProfileSelect.value;
+  }
+  const cosPhi = parseFloat(nodeCosPhiInputNew?.value ?? "");
+  if (!Number.isNaN(cosPhi)) {
+    props.cos_phi = cosPhi;
+  }
+  setGridStatus("placing node…");
+  setBrushStatus("Node brush active — placing nodes");
+  try {
+    const snapshot = await postJson(`/v1/power-grid/grids/${currentGridId}/command`, {
+      action: "add_node",
+      payload: {
+        type: nodeType,
+        position: { x: position.x, y: position.y },
+        props,
+      },
+    });
+    handleGridSnapshot(snapshot);
+    setGridStatus("node added");
+  } catch (err) {
+    console.error(err);
+    setGridStatus("add node failed");
+  } finally {
+    brushBusy = false;
+  }
+}
+
+async function handleLineBrushClick(canvasPoint) {
+  if (!overlayGridSnapshot?.nodes) {
+    return;
+  }
+  const node = findClosestNode(canvasPoint);
+  if (!node) {
+    setBrushStatus("No node nearby — try closer");
+    return;
+  }
+  if (!lineBrushFrom) {
+    lineBrushFrom = node.id;
+    setBrushStatus(`Line brush — start ${node.kind}-${node.id.slice(-6)}`);
+    return;
+  }
+  if (lineBrushFrom === node.id) {
+    setBrushStatus("Select a different node");
+    return;
+  }
+  await addLineBrush(lineBrushFrom, node.id);
+  lineBrushFrom = null;
+}
+
+async function addLineBrush(fromId, toId) {
+  if (!currentGridId) {
+    return;
+  }
+  brushBusy = true;
+  const length = parseFloat(lineLengthInput?.value ?? "0");
+  const capacity = parseFloat(lineCapacityInput?.value ?? "0");
+  setGridStatus("connecting nodes…");
+  setBrushStatus("Line brush active — select next segment");
+  try {
+    const snapshot = await postJson(`/v1/power-grid/grids/${currentGridId}/command`, {
+      action: "add_line",
+      payload: {
+        from_id: fromId,
+        to_id: toId,
+        props: {
+          length: Number.isFinite(length) ? length : 10,
+          capacity_kva: Number.isFinite(capacity) ? capacity : 80,
+        },
+      },
+    });
+    handleGridSnapshot(snapshot);
+    setGridStatus("line added");
+  } catch (err) {
+    console.error(err);
+    setGridStatus("add line failed");
+  } finally {
+    brushBusy = false;
+  }
+}
+
+async function updateNodePosition(nodeId, position) {
+  if (!currentGridId) {
+    return;
+  }
+  setGridStatus("moving node...");
+  try {
+    const snapshot = await postJson(`/v1/power-grid/grids/${currentGridId}/command`, {
+      action: "set_node_position",
+      payload: {
+        node_id: nodeId,
+        position: { x: position.x, y: position.y },
+      },
+    });
+    handleGridSnapshot(snapshot);
+    setGridStatus("node moved");
+  } catch (err) {
+    console.error(err);
+    setGridStatus("move failed");
   }
 }
 
@@ -648,7 +1088,7 @@ async function postJson(path, body) {
   const url = apiUrl(path);
   const init = {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
   };
   if (body !== undefined) {
     init.body = JSON.stringify(body);
@@ -677,7 +1117,7 @@ async function updateConsumerProps() {
   try {
     const snapshot = await postJson(`/v1/power-grid/grids/${currentGridId}/command`, {
       action: "update_node_props",
-      payload: {node_id: nodeId, props: {base_kw: base, cos_phi: cosPhi}},
+      payload: { node_id: nodeId, props: { base_kw: base, cos_phi: cosPhi } },
     });
     handleGridSnapshot(snapshot);
     setGridStatus("props updated");
@@ -706,7 +1146,7 @@ async function setLineStatusCommand() {
   try {
     const snapshot = await postJson(`/v1/power-grid/grids/${currentGridId}/command`, {
       action: "set_line_status",
-      payload: {line_id: lineId, status},
+      payload: { line_id: lineId, status },
     });
     handleGridSnapshot(snapshot);
     setGridStatus("line updated");
@@ -728,7 +1168,7 @@ async function createGridFromApi() {
   setGridStatus("creating grid…");
   try {
     const seedValue = Number(seedInput.value);
-    const payload = Number.isInteger(seedValue) ? {seed: seedValue} : {};
+    const payload = Number.isInteger(seedValue) ? { seed: seedValue } : {};
     const snapshot = await postJson("/v1/power-grid/grids", payload);
     handleGridSnapshot(snapshot);
     setGridStatus("grid ready");
@@ -805,6 +1245,23 @@ simulateBtn?.addEventListener("click", () => {
 });
 faultBtn?.addEventListener("click", () => {
   triggerFault();
+});
+nodeBrushBtn?.addEventListener("click", () => {
+  toggleBrush("node");
+});
+lineBrushBtn?.addEventListener("click", () => {
+  toggleBrush("line");
+});
+canvas.addEventListener("mousedown", handleCanvasMouseDown);
+canvas.addEventListener("mousemove", handleCanvasMouseMove);
+canvas.addEventListener("mouseup", handleCanvasMouseUp);
+canvas.addEventListener("click", handleCanvasClick);
+nodeMenuSave?.addEventListener("click", saveNodeMenu);
+nodeMenuClose?.addEventListener("click", hideNodeMenu);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    hideNodeMenu();
+  }
 });
 backendUrlInput?.addEventListener("change", () => {
   backendBase = normalizeBackendUrl(backendUrlInput.value);

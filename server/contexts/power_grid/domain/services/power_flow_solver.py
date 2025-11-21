@@ -6,8 +6,15 @@ import math
 from ..grid import Grid
 from ..entities import Transformer, Pole, Consumer, Line, Source
 
+
 class RadialPQDistFlowSolver:
-    """Упрощённый радиальный P/Q DistFlow."""
+    """
+    Упрощённый радиальный P/Q DistFlow.
+    - Использует только линии status=online.
+    - Строит лес от источников (multi-source Dijkstra).
+    - Считает P/Q назад, напряжения вперёд.
+    - Недостижимые узлы -> island (v=0).
+    """
 
     def solve(self, g: Grid) -> Grid:
         sources: List[Source] = g.sources()
@@ -27,7 +34,7 @@ class RadialPQDistFlowSolver:
         dist = {nid: math.inf for nid in g.nodes}
         parent: Dict[str, Optional[str]] = {nid: None for nid in g.nodes}
         parent_line: Dict[str, Optional[str]] = {nid: None for nid in g.nodes}
-        pq = []
+        pq: List[Tuple[float, str]] = []
         for s in sources:
             dist[s.id] = 0.0
             heapq.heappush(pq, (0.0, s.id))
@@ -46,16 +53,18 @@ class RadialPQDistFlowSolver:
 
         reachable: Set[str] = {nid for nid, d in dist.items() if math.isfinite(d)}
 
-        children = {nid: [] for nid in g.nodes}
+        children: Dict[str, List[str]] = {nid: [] for nid in g.nodes}
         for nid, pid in parent.items():
             if pid is not None:
                 children[pid].append(nid)
 
-        node_p = {nid: 0.0 for nid in g.nodes}
-        node_q = {nid: 0.0 for nid in g.nodes}
+        node_p: Dict[str, float] = {nid: 0.0 for nid in g.nodes}
+        node_q: Dict[str, float] = {nid: 0.0 for nid in g.nodes}
         for n in g.nodes.values():
             if isinstance(n, Consumer):
-                node_p[n.id] = float(n.state.get("p_kw", n.state.get("load_kw", n.props.get("base_kw", 1.5))))
+                node_p[n.id] = float(
+                    n.state.get("p_kw", n.state.get("load_kw", n.props.get("base_kw", 1.5)))
+                )
                 node_q[n.id] = float(n.state.get("q_kvar", 0.0))
 
         order = sorted(g.nodes.keys(), key=lambda nid: dist[nid], reverse=True)
@@ -78,7 +87,9 @@ class RadialPQDistFlowSolver:
             if nid not in reachable:
                 continue
             n = g.nodes[nid]
-            v_parent = float(n.state.get("v_kv", float(n.props.get("voltage_kv", 10.0))))
+            v_parent = float(
+                n.state.get("v_kv", float(n.props.get("voltage_kv", 10.0)))
+            )
 
             for cid in children.get(nid, []):
                 if cid not in reachable:
@@ -90,7 +101,9 @@ class RadialPQDistFlowSolver:
                 ln: Line = g.lines[lid]
 
                 length = float(ln.props.get("length", 1.0))
-                cap = float(ln.props.get("capacity_kva", ln.props.get("capacity_kw", 200.0)))
+                cap = float(
+                    ln.props.get("capacity_kva", ln.props.get("capacity_kw", 200.0))
+                )
                 r_pu = float(ln.props.get("r_pu", 0.0015))
                 x_pu = float(ln.props.get("x_pu", 0.0025))
 
@@ -104,7 +117,7 @@ class RadialPQDistFlowSolver:
                 ln.state["p_flow_kw"] = pflow
                 ln.state["q_flow_kvar"] = qflow
                 ln.state["s_flow_kva"] = sflow
-                ln.state["loss_kw"] = r_pu * (sflow ** 2) * length * 0.0005
+                ln.state["loss_kw"] = r_pu * (sflow**2) * length * 0.0005
                 ln.state["overload_ratio"] = sflow / cap if cap > 1e-9 else 0.0
 
                 if isinstance(cnode, Transformer):
@@ -117,9 +130,15 @@ class RadialPQDistFlowSolver:
                     cnode.state["q_in_kvar"] = qflow
                     cnode.state["p_out_kw"] = pflow * eff
                     cnode.state["q_out_kvar"] = qflow * eff
-                    cnode.state["overload_ratio"] = math.sqrt(
-                        cnode.state["p_out_kw"] ** 2 + cnode.state["q_out_kvar"] ** 2
-                    ) / ccap if ccap > 1e-9 else 0.0
+                    cnode.state["overload_ratio"] = (
+                        math.sqrt(
+                            cnode.state["p_out_kw"] ** 2
+                            + cnode.state["q_out_kvar"] ** 2
+                        )
+                        / ccap
+                        if ccap > 1e-9
+                        else 0.0
+                    )
                 else:
                     cnode.state["v_kv"] = v_child
 

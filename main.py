@@ -4,6 +4,7 @@ from typing import Optional, Mapping, Any
 
 import asyncio
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from server.contexts.power_grid.domain.grid import Grid
@@ -12,16 +13,23 @@ from server.contexts.power_grid.use_cases.simulate_tick import SimulateTick
 from server.contexts.power_grid.use_cases.set_line_status import SetLineStatus
 from server.contexts.power_grid.use_cases.trigger_fault import TriggerFault
 from server.contexts.power_grid.use_cases.clear_faults import ClearFaults
+from server.contexts.power_grid.use_cases.add_grid_node import AddGridNode
+from server.contexts.power_grid.use_cases.add_grid_line import AddGridLine
 from server.contexts.power_grid.use_cases.update_node_props import UpdateNodeProps
 from server.contexts.power_grid.infrastructure.grid_repository import InMemoryGridRepository
+from server.contexts.power_grid.use_cases.set_node_position import SetNodePosition
 
 app = FastAPI(title="Power Grid Twin")
+app.mount("/app", StaticFiles(directory="app"), name="frontend")
 
 builder = BuildGridFromGeo()
 simulator = SimulateTick()
 set_status = SetLineStatus()
 trigger_fault = TriggerFault()
 clear_faults = ClearFaults()
+add_grid_node = AddGridNode()
+add_grid_line = AddGridLine()
+set_node_position = SetNodePosition()
 update_props = UpdateNodeProps()
 grid_repo = InMemoryGridRepository()
 
@@ -92,6 +100,38 @@ def run_command(grid: Grid, action: str, payload: Mapping[str, Any]) -> None:
 
     if action == "clear_faults":
         clear_faults.execute(grid)
+        return
+
+    if action == "add_node":
+        node_type = payload.get("type")
+        position = payload.get("position")
+        props = payload.get("props", {})
+        if not node_type:
+            raise ValueError("type is required for add_node")
+        if not position or "x" not in position or "y" not in position:
+            raise ValueError("position.x and position.y are required for add_node")
+        add_grid_node.execute(grid, node_type, position, props)
+        return
+
+    if action == "add_line":
+        from_id = payload.get("from_id")
+        to_id = payload.get("to_id")
+        line_props = payload.get("props", {})
+        if not from_id or not to_id:
+            raise ValueError("from_id and to_id are required for add_line")
+        add_grid_line.execute(grid, from_id, to_id, line_props)
+        return
+
+    if action == "set_node_position":
+        node_id = payload.get("node_id")
+        position = payload.get("position")
+        if not node_id or not isinstance(position, dict):
+            raise ValueError("node_id and position dict required")
+        x = position.get("x")
+        y = position.get("y")
+        if x is None or y is None:
+            raise ValueError("position requires x and y")
+        set_node_position.execute(grid, node_id, x, y)
         return
 
     if action == "update_node_props":
