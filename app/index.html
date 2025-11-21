@@ -24,19 +24,89 @@
     <main>
       <canvas id="map" width="900" height="900"></canvas>
       <aside>
-        <div class="toolbar">
-          <label>
-            Seed
-            <input type="number" id="seed" value="834711" />
-          </label>
-          <div class="buttons">
-            <button id="regenerate">Regenerate village</button>
-            <button id="randomize">Randomize seed</button>
+      <div class="toolbar">
+        <label>
+          Seed
+          <input type="number" id="seed" value="834711" />
+        </label>
+        <div class="buttons">
+          <button id="regenerate">Regenerate village</button>
+          <button id="randomize">Randomize seed</button>
+        </div>
+      </div>
+      <div class="grid-controls">
+        <div class="grid-controls__header">
+          <div>
+            <p class="tagline" style="margin:0;">Live grid</p>
+            <h2>Power network</h2>
+          </div>
+          <span id="grid-status">awaiting grid</span>
+        </div>
+        <div class="grid-controls__info">
+          <div>
+            <span>Grid ID</span>
+            <strong id="grid-id">—</strong>
+          </div>
+          <div>
+            <span>Sim time</span>
+            <strong id="grid-time">0.0</strong>
+          </div>
+          <div>
+            <span>Nodes</span>
+            <strong id="grid-nodes">0</strong>
           </div>
         </div>
-        <p class="description">
-          Click “Regenerate” after changing the seed to get the same layout again. Fields, clusters, and roads all reuse the same random stream.
-        </p>
+        <label class="grid-controls__backend">
+          Backend URL
+          <input type="text" id="backend-url" value="http://localhost:8000" />
+        </label>
+        <div class="grid-controls__actions">
+          <button id="create-grid" class="primary">Create grid</button>
+          <button id="simulate-grid" class="secondary" disabled>Sim tick</button>
+          <button id="fault-line" class="warning" disabled>Trigger fault</button>
+        </div>
+        <div class="consumer-editor">
+          <div class="consumer-editor__header">
+            <p class="tagline" style="margin:0;">Consumer editor</p>
+            <span class="hint">Adjust base power / cosφ</span>
+          </div>
+          <label>
+            Select consumer
+            <select id="consumer-select"></select>
+          </label>
+          <label>
+            Base (kW)
+            <input type="number" id="consumer-base" step="0.1" min="0.1" />
+          </label>
+          <label>
+            cosφ
+            <input type="number" id="consumer-cosphi" step="0.01" min="0.5" max="1" />
+          </label>
+          <button id="consumer-update" class="secondary" disabled>Apply</button>
+        </div>
+        <div class="line-editor">
+          <div class="line-editor__header">
+            <p class="tagline" style="margin:0;">Line control</p>
+            <span class="hint">Force sectionalizers</span>
+          </div>
+          <label>
+            Line
+            <select id="line-select"></select>
+          </label>
+          <label>
+            Status
+            <select id="line-status">
+              <option value="online">Online</option>
+              <option value="open">Open</option>
+              <option value="faulted">Faulted</option>
+            </select>
+          </label>
+          <button id="line-set-status" class="secondary" disabled>Set status</button>
+        </div>
+      </div>
+      <p class="description">
+        Click “Regenerate” after changing the seed to get the same layout again. Fields, clusters, and roads all reuse the same random stream.
+      </p>
         <ul>
           <li>Field outlines keep the outskirts readable.</li>
           <li>Roads and alleys are separated by thickness.</li>

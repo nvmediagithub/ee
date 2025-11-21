@@ -8,6 +8,33 @@ const randomizeBtn = document.getElementById("randomize");
 
 let currentVillage = null;
 
+const backendUrlInput = document.getElementById("backend-url");
+const createGridBtn = document.getElementById("create-grid");
+const simulateBtn = document.getElementById("simulate-grid");
+const faultBtn = document.getElementById("fault-line");
+const gridIdEl = document.getElementById("grid-id");
+const gridTimeEl = document.getElementById("grid-time");
+const gridNodesEl = document.getElementById("grid-nodes");
+const gridStatusEl = document.getElementById("grid-status");
+const consumerSelect = document.getElementById("consumer-select");
+const consumerBaseInput = document.getElementById("consumer-base");
+const consumerCosPhiInput = document.getElementById("consumer-cosphi");
+const consumerUpdateBtn = document.getElementById("consumer-update");
+const lineSelect = document.getElementById("line-select");
+const lineStatusSelect = document.getElementById("line-status");
+const lineSetBtn = document.getElementById("line-set-status");
+const consumerSelect = document.getElementById("consumer-select");
+const consumerBaseInput = document.getElementById("consumer-base");
+const consumerCosPhiInput = document.getElementById("consumer-cosphi");
+const consumerUpdateBtn = document.getElementById("consumer-update");
+
+let overlayGridSnapshot = null;
+let currentGridId = null;
+let gridWs = null;
+let backendBase = normalizeBackendUrl(backendUrlInput?.value ?? "http://localhost:8000");
+let consumerNodes = [];
+let lineEntries = [];
+
 function calibrateCanvas() {
   const ratio = window.devicePixelRatio || 1;
   canvas.width = SIZE * ratio;
@@ -375,6 +402,384 @@ function drawVillage(village) {
   drawHouses(village.houses);
   drawTrees(village.treeClusters);
   drawTitle(village.info);
+  drawNetworkOverlay(overlayGridSnapshot);
+}
+
+const GRID_BOUNDS = {minX: -60, maxX: 80, minY: -40, maxY: 160};
+
+function mapGridPoint(position) {
+  if (!position) {
+    return {x: SIZE / 2, y: SIZE / 2};
+  }
+  const pctX = clamp((position.x - GRID_BOUNDS.minX) / (GRID_BOUNDS.maxX - GRID_BOUNDS.minX), 0, 1);
+  const pctY = clamp((position.y - GRID_BOUNDS.minY) / (GRID_BOUNDS.maxY - GRID_BOUNDS.minY), 0, 1);
+  return {
+    x: pctX * SIZE,
+    y: pctY * SIZE,
+  };
+}
+
+function drawNetworkOverlay(snapshot) {
+  if (!snapshot || !snapshot.nodes) {
+    return;
+  }
+
+  const nodes = snapshot.nodes;
+  const lines = snapshot.lines ?? {};
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  Object.values(lines).forEach((line) => {
+    const from = nodes[line.from_id];
+    const to = nodes[line.to_id];
+    if (!from || !to) {
+      return;
+    }
+    const fromPt = mapGridPoint(from.position);
+    const toPt = mapGridPoint(to.position);
+    ctx.beginPath();
+    ctx.setLineDash(line.status === "open" ? [6, 6] : []);
+    ctx.lineWidth = line.status === "faulted" ? 4.5 : line.status === "open" ? 3 : 2;
+    ctx.strokeStyle =
+      line.status === "faulted" ? "#de3d45" : line.status === "open" ? "#f1a53a" : "#2e6a5b";
+    ctx.moveTo(fromPt.x, fromPt.y);
+    ctx.lineTo(toPt.x, toPt.y);
+    ctx.stroke();
+  });
+
+  ctx.setLineDash([]);
+  Object.values(nodes).forEach((node) => {
+    const pos = mapGridPoint(node.position);
+    const radius = node.kind === "plant" ? 9 : node.kind === "tp" ? 7 : 5;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle =
+      node.kind === "plant"
+        ? "#fff4d9"
+        : node.kind === "tp"
+        ? "#d9eaf4"
+        : node.kind === "house"
+        ? "#fde4e8"
+        : "#e8f3e5";
+    ctx.strokeStyle =
+      node.status === "faulted" ? "#de3d45" : node.status === "open" ? "#f1a53a" : "#3a4d3c";
+    ctx.lineWidth = 2;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = "10px \"Inter\", sans-serif";
+    ctx.fillStyle = "#1f3c33";
+    const label = node.kind?.substring(0, 1).toUpperCase() ?? "N";
+    ctx.fillText(label, pos.x + radius + 2, pos.y + 4);
+  });
+
+  ctx.restore();
+}
+
+function redrawVillage() {
+  if (currentVillage) {
+    drawVillage(currentVillage);
+  }
+}
+
+function handleGridSnapshot(snapshot) {
+  overlayGridSnapshot = snapshot;
+  currentGridId = snapshot?.id ?? currentGridId;
+  populateConsumerList(snapshot);
+  populateLineList(snapshot);
+  updateGridMetadata(snapshot);
+  redrawVillage();
+}
+
+function populateConsumerList(snapshot) {
+  consumerNodes = [];
+  if (!consumerSelect) {
+    return;
+  }
+  const nodes = snapshot?.nodes ?? {};
+  consumerSelect.innerHTML = "";
+  const entries = Object.values(nodes).filter((node) => node.kind === "house");
+  entries.forEach((node) => {
+    const option = document.createElement("option");
+    option.value = node.id;
+    option.textContent = `${node.id.slice(-6)} (${node.props?.profile ?? "house"})`;
+    consumerSelect.appendChild(option);
+  });
+  consumerNodes = entries;
+  if (consumerUpdateBtn) {
+    consumerUpdateBtn.disabled = entries.length === 0;
+  }
+  if (entries.length > 0) {
+    consumerSelect.value = entries[0].id;
+    syncConsumerInputs(entries[0]);
+  }
+}
+
+function syncConsumerInputs(node) {
+  if (!node) {
+    return;
+  }
+  if (consumerBaseInput) {
+    consumerBaseInput.value = node.props?.base_kw ?? 1.5;
+  }
+  if (consumerCosPhiInput) {
+    consumerCosPhiInput.value = node.props?.cos_phi ?? 0.95;
+  }
+}
+
+function populateLineList(snapshot) {
+  if (!lineSelect) {
+    return;
+  }
+  const lines = snapshot?.lines ?? {};
+  lineSelect.innerHTML = "";
+  lineEntries = Object.values(lines);
+  lineEntries.forEach((line) => {
+    const option = document.createElement("option");
+    option.value = line.id;
+    option.textContent = `${line.id.slice(-6)} [${line.status}]`;
+    lineSelect.appendChild(option);
+  });
+  if (lineSetBtn) {
+    lineSetBtn.disabled = lineEntries.length === 0;
+  }
+  if (lineEntries.length > 0) {
+    lineSelect.value = lineEntries[0].id;
+    syncLineSelection();
+  }
+}
+
+function syncLineSelection() {
+  const line = lineEntries.find((entry) => entry.id === lineSelect?.value);
+  if (line && lineStatusSelect) {
+    lineStatusSelect.value = line.status ?? "online";
+  }
+}
+
+function updateGridMetadata(snapshot) {
+  if (gridIdEl) {
+    gridIdEl.textContent = snapshot?.id ?? "—";
+  }
+  if (gridTimeEl) {
+    const time = snapshot?.meta?.sim_time ?? 0;
+    gridTimeEl.textContent = time.toFixed(1);
+  }
+  if (gridNodesEl) {
+    gridNodesEl.textContent = snapshot?.nodes ? Object.keys(snapshot.nodes).length : "0";
+  }
+  if (simulateBtn) {
+    simulateBtn.disabled = !snapshot;
+  }
+  if (faultBtn) {
+    faultBtn.disabled = !snapshot;
+  }
+}
+
+function setGridStatus(text) {
+  if (gridStatusEl) {
+    gridStatusEl.textContent = text;
+  }
+}
+
+function disconnectWebsocket() {
+  if (gridWs) {
+    gridWs.onopen = null;
+    gridWs.onmessage = null;
+    gridWs.onclose = null;
+    gridWs.close();
+    gridWs = null;
+  }
+}
+
+function connectGridWs() {
+  if (!currentGridId) {
+    return;
+  }
+  disconnectWebsocket();
+  try {
+    const base = new URL(backendBase);
+    const protocol = base.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${base.host}/v1/power-grid/grids/${currentGridId}/ws`;
+    gridWs = new WebSocket(wsUrl);
+    gridWs.onopen = () => setGridStatus("WS connected");
+    gridWs.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data && data.id) {
+        handleGridSnapshot(data);
+        return;
+      }
+      if (data?.status) {
+        setGridStatus(`command ${data.action} ok`);
+        return;
+      }
+      if (data?.error) {
+        setGridStatus(`ws error: ${data.error}`);
+      }
+    };
+    gridWs.onclose = () => setGridStatus("WS closed");
+  } catch (err) {
+    console.warn("ws init failed", err);
+    setGridStatus("WS unavailable");
+  }
+}
+
+function apiUrl(path) {
+  try {
+    return new URL(path, backendBase).toString();
+  } catch {
+    return backendBase.replace(/\/$/, "") + path;
+  }
+}
+
+function normalizeBackendUrl(value) {
+  let trimmed = value.trim();
+  if (!trimmed) {
+    return "http://localhost:8000";
+  }
+  if (!/^https?:\/\//.test(trimmed)) {
+    trimmed = `http://${trimmed}`;
+  }
+  return trimmed.replace(/\/$/, "");
+}
+
+async function postJson(path, body) {
+  const url = apiUrl(path);
+  const init = {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+  };
+  if (body !== undefined) {
+    init.body = JSON.stringify(body);
+  }
+  const response = await fetch(url, init);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`API ${response.status}: ${text}`);
+  }
+  return await response.json();
+}
+
+async function updateConsumerProps() {
+  if (!currentGridId || !consumerSelect) {
+    return;
+  }
+  const nodeId = consumerSelect.value;
+  const base = parseFloat(consumerBaseInput?.value ?? "");
+  const cosPhi = parseFloat(consumerCosPhiInput?.value ?? "");
+  if (!nodeId || Number.isNaN(base) || Number.isNaN(cosPhi)) {
+    setGridStatus("invalid consumer values");
+    return;
+  }
+  consumerUpdateBtn.disabled = true;
+  setGridStatus("updating props…");
+  try {
+    const snapshot = await postJson(`/v1/power-grid/grids/${currentGridId}/command`, {
+      action: "update_node_props",
+      payload: {node_id: nodeId, props: {base_kw: base, cos_phi: cosPhi}},
+    });
+    handleGridSnapshot(snapshot);
+    setGridStatus("props updated");
+  } catch (err) {
+    console.error(err);
+    setGridStatus("update failed");
+  } finally {
+    consumerUpdateBtn.disabled = false;
+  }
+}
+
+async function setLineStatusCommand() {
+  if (!currentGridId || !lineSelect || !lineStatusSelect) {
+    return;
+  }
+  const lineId = lineSelect.value;
+  const status = lineStatusSelect.value;
+  if (!lineId || !status) {
+    setGridStatus("missing line/status");
+    return;
+  }
+  if (lineSetBtn) {
+    lineSetBtn.disabled = true;
+  }
+  setGridStatus("updating line...");
+  try {
+    const snapshot = await postJson(`/v1/power-grid/grids/${currentGridId}/command`, {
+      action: "set_line_status",
+      payload: {line_id: lineId, status},
+    });
+    handleGridSnapshot(snapshot);
+    setGridStatus("line updated");
+  } catch (err) {
+    console.error(err);
+    setGridStatus("line update failed");
+  } finally {
+    if (lineSetBtn) {
+      lineSetBtn.disabled = false;
+    }
+  }
+}
+
+async function createGridFromApi() {
+  if (!createGridBtn) {
+    return;
+  }
+  createGridBtn.disabled = true;
+  setGridStatus("creating grid…");
+  try {
+    const seedValue = Number(seedInput.value);
+    const payload = Number.isInteger(seedValue) ? {seed: seedValue} : {};
+    const snapshot = await postJson("/v1/power-grid/grids", payload);
+    handleGridSnapshot(snapshot);
+    setGridStatus("grid ready");
+    connectGridWs();
+  } catch (err) {
+    console.error(err);
+    setGridStatus("create failed");
+  } finally {
+    createGridBtn.disabled = false;
+  }
+}
+
+async function simulateGridTick() {
+  if (!currentGridId || !simulateBtn) {
+    return;
+  }
+  simulateBtn.disabled = true;
+  setGridStatus("simulating…");
+  try {
+    const currentTime = overlayGridSnapshot?.meta?.sim_time ?? 0;
+    const snapshot = await postJson(`/v1/power-grid/grids/${currentGridId}/simulate`, {
+      time: currentTime + 1,
+    });
+    handleGridSnapshot(snapshot);
+    setGridStatus("simulation updated");
+  } catch (err) {
+    console.error(err);
+    setGridStatus("simulate failed");
+  } finally {
+    simulateBtn.disabled = false;
+  }
+}
+
+async function triggerFault() {
+  if (!currentGridId || !faultBtn) {
+    return;
+  }
+  faultBtn.disabled = true;
+  setGridStatus("triggering fault…");
+  try {
+    const snapshot = await postJson(`/v1/power-grid/grids/${currentGridId}/command`, {
+      action: "trigger_fault",
+    });
+    handleGridSnapshot(snapshot);
+    setGridStatus("fault injected");
+  } catch (err) {
+    console.error(err);
+    setGridStatus("fault failed");
+  } finally {
+    faultBtn.disabled = false;
+  }
 }
 
 function regenerateVillage(seed) {
@@ -390,6 +795,36 @@ randomizeBtn.addEventListener("click", () => {
   const newSeed = Math.floor(Math.random() * 1_000_000);
   seedInput.value = newSeed;
   regenerateVillage(newSeed);
+});
+
+createGridBtn?.addEventListener("click", () => {
+  createGridFromApi();
+});
+simulateBtn?.addEventListener("click", () => {
+  simulateGridTick();
+});
+faultBtn?.addEventListener("click", () => {
+  triggerFault();
+});
+backendUrlInput?.addEventListener("change", () => {
+  backendBase = normalizeBackendUrl(backendUrlInput.value);
+  disconnectWebsocket();
+  setGridStatus("backend updated");
+});
+consumerSelect?.addEventListener("change", () => {
+  const node = consumerNodes.find((n) => n.id === consumerSelect.value);
+  if (node) {
+    syncConsumerInputs(node);
+  }
+});
+consumerUpdateBtn?.addEventListener("click", () => {
+  updateConsumerProps();
+});
+lineSelect?.addEventListener("change", () => {
+  syncLineSelection();
+});
+lineSetBtn?.addEventListener("click", () => {
+  setLineStatusCommand();
 });
 
 window.addEventListener("resize", () => {
